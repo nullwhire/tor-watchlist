@@ -1,0 +1,42 @@
+name: Update Tor IPs
+
+on:
+  workflow_dispatch:        # permite executar manualmente
+  schedule:
+    - cron: "*/30 * * * *"  # a cada 30 min (UTC); GitHub Actions usa UTC
+
+permissions:
+  contents: write           # necessário para fazer commit/push
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch feed and build files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data
+          curl -fsSL 'https://www.dan.me.uk/torlist/?full' \
+          | grep -v '^[[:space:]]*#' \
+          | awk -F'|' '{print $1}' \
+          | awk 'NF' \
+          | sort -u > data/tor_ips.txt
+          { echo "ip"; cat data/tor_ips.txt; } > data/tor_ips.csv
+
+      - name: Commit & push if changed
+        shell: bash
+        run: |
+          if ! git diff --quiet -- data/tor_ips.txt data/tor_ips.csv; then
+            ts=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/tor_ips.txt data/tor_ips.csv
+            git commit -m "update tor ips: ${ts}"
+            git push
+          else
+            echo "Sem alterações."
+          fi
