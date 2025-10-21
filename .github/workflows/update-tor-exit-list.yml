@@ -28,7 +28,7 @@ jobs:
           | grep -v '^[[:space:]]*#' \
           | awk -F'|' '{print $1}' \
           | awk 'NF' \
-          | sort -u > data/tor_ips.txt
+          | sort -u > data/tor_exit_ips.txt
           { echo "ip"; cat data/tor_exit_ips.txt; } > data/tor_exit_ips.csv
           ls -la data
 
