@@ -1,0 +1,61 @@
+name: Update Tor Exit IPs 
+
+on:
+  workflow_dispatch:        # executar manualmente
+  schedule:
+    - cron: "0 * * * *"     # de hora a hora (UTC). Podes voltar a */30 se quiseres.
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tor-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch feed and build files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data
+          curl -fsSL 'https://www.dan.me.uk/torlist/?exit' \
+          | grep -v '^[[:space:]]*#' \
+          | awk -F'|' '{print $1}' \
+          | awk 'NF' \
+          | sort -u > data/tor_ips.txt
+          { echo "ip"; cat data/tor_ips.txt; } > data/tor_ips.csv
+          ls -la data
+
+      - name: Stage changes (including new files)
+        shell: bash
+        run: |
+          git add -A data
+
+      - name: Commit & push if there are staged changes
+        shell: bash
+        run: |
+          if ! git diff --cached --quiet; then
+            ts=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "update tor ips: ${ts}"
+            git push
+          else
+            echo "Sem alterações para commit."
+          fi
+
+      - name: Debug info (branch/status)
+        if: always()
+        shell: bash
+        run: |
+          echo "Branch atual:" $(git rev-parse --abbrev-ref HEAD)
+          echo "--- git status ---"
+          git status
+          echo "--- git log (último commit) ---"
+          git --no-pager log -1 --oneline
